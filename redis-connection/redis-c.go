@@ -3,7 +3,6 @@ package redisconnection
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -35,29 +34,26 @@ type Command struct {
 	Lastname string `json:"lastname"`
 }
 
-func (r *RedisC) Test() {
-
-	command := Command{Name: "Sam", Lastname: "jaboury"}
+func (r *RedisC) MakeTestData(queue string)  string{
+	command := Command{Name: "Sam", Lastname: "test"}
 	payload, err := json.Marshal(command)
 
-	err = r.rdb.RPush(*r.ctx, "jsonlist", payload ).Err()
+	err = r.rdb.RPush(*r.ctx, queue, payload ).Err()
 	if err != nil {
 		panic(err)
 	}
 
-	val, err := r.rdb.BLPop(*r.ctx, 0, "jsonlist").Result()
+	return string(payload)
+}
+
+func (r *RedisC) ReadFromQueue(queue string) []byte{
+
+	//will block till event has been shot into queue
+	val, err := r.rdb.BLPop(*r.ctx, 0, queue).Result()
 
 	if err != nil {
 		panic(err)
 	}
 
-	var got Command
-
-	if err := json.Unmarshal([]byte(val[1]), &got); err != nil {
-		panic(err)
-	}
-
-	out, _ := json.Marshal(got)
-
-	fmt.Println("test", string(out) )
+	return []byte(val[1])
 }

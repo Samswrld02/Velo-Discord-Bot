@@ -2,18 +2,20 @@ package main
 
 import (
 	"fmt"
-	"os"
 
-	redis "github.com/Samswrld02/Velo-Discord-Bot/redis-connection"
+	"github.com/Samswrld02/Velo-Discord-Bot/bot"
+	"github.com/joho/godotenv"
 )
 
 
 
 func main() {
-	fmt.Printf("hello world! This is the beginning of my discord bot!")   
+	fmt.Printf("Velo-Helpdesk is running: ") 
 
-	redisC := redis.NewRedisClient(os.Getenv("REDIS_ADDR"), os.Getenv("REDIS_PW"))
+	//load in env
+	godotenv.Load()
 
-	redisC.Test()
+	bot := bot.NewBot()
+	bot.Run()
 }
 
