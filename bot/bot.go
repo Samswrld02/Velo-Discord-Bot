@@ -85,8 +85,7 @@ func (b *Bot) ticketInQueue() (bool, error) {
 
 //method for processing data into struct
 func (b *Bot) handleData(data []byte) {
-
-	channel, err := b.session.UserChannelCreate("212474252924944384")
+	channel, err := b.session.UserChannelCreate(os.Getenv("USER_CHANNEL"))
 
 	if err != nil {
 		panic(err)
