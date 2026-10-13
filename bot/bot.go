@@ -16,7 +16,6 @@ type Bot struct {
 	session *discordgo.Session
 }
 
-
 func (b *Bot) Run() {
 
 	//open session
@@ -93,7 +92,18 @@ func (b *Bot) handleData(data []byte) {
 		fmt.Println("Error occurred: " + err.Error())
 	}
 
-	_, err = b.session.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+	message := createMessage(ticket)
+
+	_, err = b.session.ChannelMessageSendComplex(ch.ID, message)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+//function for creating the message component/content
+func createMessage(ticket types.Ticket) *discordgo.MessageSend {
+	return &discordgo.MessageSend{
 		Embeds: []*discordgo.MessageEmbed {
 			{
 				Title: "Ticket assigned by " + ticket.Assigned_by,
@@ -112,10 +122,6 @@ func (b *Bot) handleData(data []byte) {
 				},
 			},
 		},
-	})
-
-	if err != nil {
-		fmt.Println(err)
 	}
 }
 
