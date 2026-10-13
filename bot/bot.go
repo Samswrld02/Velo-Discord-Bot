@@ -71,10 +71,6 @@ func (b *Bot) ticketInQueue() (bool, error) {
 	//make redis connection
 	r := redisconnection.NewRedisClient(os.Getenv("REDIS_ADDR"), os.Getenv("REDIS_PW"))
 
-	//make test data
-	_ = r.MakeTestData(queue)
-
-
 	for  {
 		//blocking function -> synchronous for now
 		value := r.ReadFromQueue(queue)
@@ -85,25 +81,42 @@ func (b *Bot) ticketInQueue() (bool, error) {
 
 //method for processing data into struct
 func (b *Bot) handleData(data []byte) {
-	channel, err := b.session.UserChannelCreate(os.Getenv("USER_CHANNEL"))
-
-	if err != nil {
-		panic(err)
-	}
-	
 	//import ticket struct
 	var ticket types.Ticket;
-
 
 	//unmarshal data into struct
 	json.Unmarshal(data, &ticket)
 
-	//test data
-	ticket.Assignee = "Sam"
-	ticket.Number = "7"
-	ticket.Url = "https://www.google.com/1"
+	ch, err := b.session.UserChannelCreate(ticket.Discord_id)
 
-	b.session.ChannelMessageSend(channel.ID, "ticket " + ticket.Number + "Assigned by: " + ticket.Assignee + "View the ticket: "+ ticket.Url)
+	if err != nil {
+		fmt.Println("Error occurred: " + err.Error())
+	}
+
+	_, err = b.session.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+		Embeds: []*discordgo.MessageEmbed {
+			{
+				Title: "Ticket assigned by " + ticket.Assigned_by,
+				Description: ticket.Subject,
+			},
+
+		},
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					discordgo.Button{
+						Label: "view ticket",
+						Style: discordgo.LinkButton,
+						URL: ticket.Url,
+					},
+				},
+			},
+		},
+	})
+
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 
