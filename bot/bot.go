@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 
 	"github.com/Samswrld02/Velo-Discord-Bot/types"
 
@@ -68,7 +69,12 @@ func (b *Bot) ticketInQueue() (bool, error) {
 	}
 
 	//make redis connection
-	r := redisconnection.NewRedisClient(os.Getenv("REDIS_ADDR"), os.Getenv("REDIS_PW"))
+	db, err := strconv.Atoi(os.Getenv("REDIS_DB"))
+	if err != nil {
+		fmt.Println("error with db .env variable")
+	}
+	
+	r := redisconnection.NewRedisClient(os.Getenv("REDIS_ADDR"), os.Getenv("REDIS_PW"), db)
 
 	for  {
 		//blocking function -> synchronous for now

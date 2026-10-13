@@ -13,7 +13,7 @@ type RedisC struct {
 	ctx *context.Context
 }
 
-func NewRedisClient(addr string, password string) (*RedisC) {
+func NewRedisClient(addr string, password string, db int) (*RedisC) {
 	//create context 
 	ctx := context.Background()
 
@@ -21,7 +21,7 @@ func NewRedisClient(addr string, password string) (*RedisC) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: addr,
 		Password: password,
-		DB: 0,
+		DB: db,
 	})
 	return &RedisC{
 		rdb: rdb,
