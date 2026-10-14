@@ -1,9 +1,13 @@
 package types
 
 type Ticket struct {
-	Id string `json:"ticket_id"`
-	Number string `json:"ticket_number"`
-	Url string `json:"ticket_url"`
-	Assignee string `json:"ticket_assignee"`
-	Discord_id string `json:"discord_id"`
+	Type string `json:"type"`
+	Discord_id string `json:"discord_user_id"`
+	Ticket_it string `json:"ticket_id"`
+	Ticket_number string `json:"ticket_number"`
+	Subject string `json:"subject"`
+	Assigned_by string `json:"assigned_by"`
+	Url string `json:"url"`
+	Occured_at string `json:"occured_at"`
+	
 }
