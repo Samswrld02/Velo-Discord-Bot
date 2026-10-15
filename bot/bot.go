@@ -1,13 +1,20 @@
 package bot
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
+	"syscall"
 
 	"github.com/Samswrld02/Velo-Discord-Bot/types"
+	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
 
 	redisconnection "github.com/Samswrld02/Velo-Discord-Bot/redis-connection"
 	"github.com/bwmarrin/discordgo"
@@ -15,67 +22,78 @@ import (
 
 type Bot struct {
 	session *discordgo.Session
+	wg sync.WaitGroup
+	logger *logrus.Logger
+	config *types.Config
 }
 
 func (b *Bot) Run() {
 
 	//open session
-	b.session.Open()
+	if err := b.session.Open(); err != nil {
+		b.logger.Fatal("Could not open Discord session " + err.Error())
+	}
+	
 	defer b.session.Close()
 
-	
+	b.printAscii()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	//event handler
-	// discord.AddHandler(newMessage)
-	// discord.AddHandler(readEventFromQueue)
-	b.handleQueue()
+	b.handleQueue(ctx)
 
+	b.logger.Info("bot is running")
 
-	fmt.Println("bot is running")
+	b.handleGracefulshutdown(cancel)
+}
 
+func (b *Bot) handleGracefulshutdown(cancel context.CancelFunc) {
+	//gracefull shutdown
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	
 	<-c
+	b.logger.Info("Bot is shutting down")
+	//signal context to close
+	cancel()
+
+	//wait for goroutines to finish
+	b.wg.Wait()
+	fmt.Println("all events have been processed, bot has been closed! Goodbye")
 }
 
 
-func handleTicketEvent() {
-
-}
-
-func NewBot() *Bot{
-	BotToken, found := os.LookupEnv("DISCORD_BOT_TOKEN")
-
-	if found != true {
-		panic("Error with the bot token")
-	}
-
+func NewBot(logger *logrus.Logger, config *types.Config) *Bot{
 	//create a discord session
-	discord, err := discordgo.New("Bot " +  BotToken)
-
+	discord, err := discordgo.New("Bot " +  config.DiscordBotToken)
 	if err != nil {
 		panic(err)
 	}
-	
-	return &Bot{session: discord}
+
+
+	return &Bot{session: discord, wg: sync.WaitGroup{}, logger: logger, config: config}
 }
 
 //method for checking if ticket event was put into the queue
-func (b *Bot) handleQueue() {
+func (b *Bot) handleQueue(ctx context.Context) {
 
 	//retrieve redis db for the queue
-	db, err := strconv.Atoi(os.Getenv("REDIS_DB"))
+	db, err := strconv.Atoi(b.config.RedisDb)
 	if err != nil {
-		fmt.Println("error with db .env variable")
+		panic("error redis db env variable " + err.Error())
 	}
 	
 	//create redis connection
-	r := redisconnection.NewRedisClient(os.Getenv("REDIS_ADDR"), os.Getenv("REDIS_PW"), db)
+	r := redisconnection.NewRedisClient(b.config.RedisAddr, b.config.RedisPw, db)
 
 	//channel for the queued events
 	eventChannel := make(chan []byte)
 
 	//worker that reads data from the redis queue into the channel
-	b.readEventWorker(eventChannel, r)
+	b.readEventWorker(eventChannel, r, ctx)
 
 	//specified ammount of workers that process data from the channel concurrently
 	b.handleTicketWorkers(5, eventChannel)
@@ -87,12 +105,18 @@ func (b *Bot) handleData(data []byte) {
 	var ticket types.Ticket;
 
 	//unmarshal data into struct
-	json.Unmarshal(data, &ticket)
+	if err := json.Unmarshal(data, &ticket); err != nil  {
+		b.logger.Error("error unmarshaling data: " + err.Error())
+
+		//early return if data is malformed
+		return 
+	}
 
 	ch, err := b.session.UserChannelCreate(ticket.Discord_id)
 
 	if err != nil {
-		fmt.Println("Error occurred: " + err.Error())
+		b.logger.Error("Error occurred: " + err.Error())
+		return
 	}
 
 	message := createMessage(ticket)
@@ -100,7 +124,7 @@ func (b *Bot) handleData(data []byte) {
 	_, err = b.session.ChannelMessageSendComplex(ch.ID, message)
 
 	if err != nil {
-		fmt.Println(err)
+		b.logger.Error(err.Error())
 	}
 }
 
@@ -132,30 +156,58 @@ func createMessage(ticket types.Ticket) *discordgo.MessageSend {
 func (b *Bot) handleTicketWorkers(workers int, eventChannel <-chan []byte ) {
 	//worker pool that handles the jobs from the queue
 	for i := 0; i < workers; i++ {
+		//add to wg for every worker
+		b.wg.Add(1)
+
 		//dispatch worker
 		go func(){
+			defer b.wg.Done()
 			//read from channel, blocks if channel is empty
 			for job := range eventChannel {
 				b.handleData(job)
 			}
+
+			//when eventchannel is closed go routine will finish on its own and return
 		}()
 	}
 }
 
 //processo/worker of redis queue
-func (b *Bot) readEventWorker(eventChannel chan []byte, r *redisconnection.RedisC) {
-		queue, found := os.LookupEnv("REDIS_QUEUE")
-		if found != true {
-			panic("Error with given queue")
-		}
-		//get env
+func (b *Bot) readEventWorker(eventChannel chan []byte, r *redisconnection.RedisC, ctx context.Context) {
+		queue := b.config.RedisQueue
+		
 		go func() {		
 		//loop infinitely blpop will block if queue is empty
 			for {
-				value := r.ReadFromQueue(queue)
-				eventChannel <- value
+				select{
+				case <-ctx.Done():
+					//handle stopping, close eventchannel
+					close(eventChannel)
+					return
+				default:
+					value, err := r.ReadFromQueue(ctx, queue)
+					if err != nil{
+						if _, ok := errors.AsType[*net.OpError](err); ok {
+							b.logger.Panic(err.Error())
+						}
+						if !errors.Is(err, redis.Nil) {
+							b.logger.Error(err.Error())
+						}
+						continue
+					}
+					eventChannel <- value
+				}
 			}
 		}()
+}
+
+func (b *Bot) printAscii() {
+	fmt.Print(`
+█   █ █████ █      ███     ████   ███  █████    █     ███ █   █ █████ 
+█   █ █     █     █   █    █   █ █   █   █      █      █  █   █ █     
+█   █ ████  █     █   █    ████  █   █   █      █      █  █   █ ████  
+ █ █  █     █     █   █    █   █ █   █   █      █      █   █ █  █     
+  █   █████ █████  ███     ████   ███    █      █████ ███   █   █████ `)
 }
 
 
