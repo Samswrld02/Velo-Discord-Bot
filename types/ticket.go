@@ -9,5 +9,4 @@ type Ticket struct {
 	Assigned_by string `json:"assigned_by"`
 	Url string `json:"url"`
 	Occured_at string `json:"occured_at"`
-	
 }

@@ -3,6 +3,7 @@ package redisconnection
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -46,14 +47,14 @@ func (r *RedisC) MakeTestData(queue string)  string{
 	return string(payload)
 }
 
-func (r *RedisC) ReadFromQueue(queue string) []byte{
+func (r *RedisC) ReadFromQueue(ctx context.Context, queue string ) ([]byte, error){
 
 	//will block till event has been shot into queue
-	val, err := r.rdb.BLPop(*r.ctx, 0, queue).Result()
+	val, err := r.rdb.BLPop(ctx, time.Second * 2, queue).Result()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return []byte(val[1])
+	return []byte(val[1]), nil
 }
