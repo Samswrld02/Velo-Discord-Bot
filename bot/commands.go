@@ -2,28 +2,67 @@ package bot
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	veloapi "github.com/Samswrld02/Velo-Discord-Bot/velo-api"
 	"github.com/bwmarrin/discordgo"
 )
 
-const linkChannelCommand = "kanaal"
+//command enum
+type command string 
+
+const (
+	setChannel  command = "setchannel"
+	helloWorld command = "helloworld"
+	help command = "help"
+)
 
 //only members that can manage channels see the command
 var manageChannels int64 = discordgo.PermissionManageChannels
+var allmembers int64 = discordgo.PermissionAll
 
 //slash commands the bot registers on startup
 var commands = []*discordgo.ApplicationCommand{
 	{
-		Name: linkChannelCommand,
+		Name: string(setChannel),
 		Description: "Koppel dit kanaal aan Velo",
 		DefaultMemberPermissions: &manageChannels,
 	},
+	{
+		Name: string(helloWorld),
+		Description: "Send hello world",
+		DefaultMemberPermissions: &manageChannels,
+	},
+	{
+		Name: string(help),
+		Description: "List commands",
+		DefaultMemberPermissions: &allmembers,
+	},
+}
+
+func (b *Bot) allCommands() []command {
+	return []command{
+		setChannel,
+		helloWorld,
+		help,
+	}
+}
+
+func (b *Bot) commandsToString(commands []command) string {
+	var list []string
+
+	for _, c := range commands {
+		list = append(list, string(c))
+	}
+
+	return "Commands: \n" + strings.Join(list, "\n")
 }
 
 //registers the slash commands, must run after the session is open (needs the bot's own id)
 func (b *Bot) registerCommands() {
+	fmt.Println(string(setChannel))
 	//bulk overwrite replaces all commands, so removed commands disappear too
 	//dev guild = instantly available on that server, empty = global
 	_, err := b.session.ApplicationCommandBulkOverwrite(b.session.State.User.ID, b.config.DiscordDevGuildID, commands)
@@ -32,13 +71,27 @@ func (b *Bot) registerCommands() {
 	}
 }
 
-//handler for every interaction (slash commands, buttons, ...)
+//handler for every interaction (slash commands, buttons, etc)
 func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.Type != discordgo.InteractionApplicationCommand || i.ApplicationCommandData().Name != linkChannelCommand {
+	if i.Type != discordgo.InteractionApplicationCommand  {
 		return
 	}
 
-	//in a DM there is no guild and i.Member is nil
+	switch i.ApplicationCommandData().Name {
+	case string(setChannel):
+		b.handleLinkChannels(s, i)
+	case string(helloWorld):
+		b.respond(i, "hello world")
+	case string(help):
+		commands := b.commandsToString(b.allCommands())
+		
+		b.respond(i, string(commands))
+	}
+}
+
+
+	
+func (b *Bot) handleLinkChannels(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.GuildID == "" {
 		b.respond(i, "Gebruik /kanaal in het kanaal van een server waar Velo moet posten.")
 		return
@@ -72,6 +125,7 @@ func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCr
 	if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &message}); err != nil {
 		b.logger.Error("could not edit interaction response: " + err.Error())
 	}
+
 }
 
 //direct ephemeral answer, only the person who ran the command sees it
