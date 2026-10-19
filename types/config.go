@@ -7,8 +7,13 @@ type Config struct {
 	RedisPw string
 	RedisQueue string
 	RedisDb string
-	UserChannel string
 	DiscordBotToken string
+	//guild to register slash commands on while developing, empty = global
+	DiscordDevGuildID string
+	//base url of the velo api, e.g. http://localhost:8000/api/v1
+	VeloAPIURL string
+	//shared secret, same value as DISCORD_BOT_API_TOKEN in the velo backend
+	VeloBotToken string
 }
 
 func returnEnv(val string, def string) string {
@@ -25,7 +30,9 @@ func NewConfig() *Config {
 		RedisPw: returnEnv("REDIS_PW", ""),
 		RedisQueue: returnEnv("REDIS_QUEUE", ""),
 		RedisDb: returnEnv("REDIS_DB", "0"),
-		UserChannel: returnEnv("", ""),
 		DiscordBotToken: returnEnv("DISCORD_BOT_TOKEN", ""),
+		DiscordDevGuildID: returnEnv("DISCORD_DEV_GUILD_ID", ""),
+		VeloAPIURL: returnEnv("VELO_API_URL", "http://localhost:8000/api/v1"),
+		VeloBotToken: returnEnv("VELO_BOT_TOKEN", ""),
 	}
 }
