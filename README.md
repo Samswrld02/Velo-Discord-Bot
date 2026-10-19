@@ -7,7 +7,9 @@ Go Discord bot that consumes ticket events from a Redis queue and notifies assig
 1. The main app pushes ticket events onto a Redis list (queue).
 2. A reader goroutine blocks on `BLPOP`, waiting for the next event.
 3. Each payload is sent into a shared jobs channel.
-4. A pool of workers unmarshals the payload into a `Ticket` and sends a Discord DM (embed + link button) to the assignee.
+4. A pool of workers unmarshals the payload into a `Ticket` and switches on its `type`:
+   - `ticket.assigned`: a DM (embed + link button) to the assignee.
+   - `ticket.created`: a message in the channel that was linked with `/kanaal` (`channel_id`).
 
 ```mermaid
 sequenceDiagram
@@ -94,16 +96,19 @@ cmd/velo-bot/     # entrypoint
 bot/              # Discord session, queue consumer, worker pool
 redis-connection/ # Redis client (push/pop helpers)
 types/            # Ticket payload + config
+velo-api/         # HTTP client for the Velo backend (bot-token auth)
 logger/           # logrus setup (writes to logger/logs/)
 ```
 
 ## Ticket payload
 
-Events on the queue are JSON matching:
+All events come through one list, `discord:events`. The `type` field decides what the bot does.
+
+`ticket.assigned`:
 
 ```json
 {
-  "type": "...",
+  "type": "ticket.assigned",
   "discord_user_id": "...",
   "ticket_id": "...",
   "ticket_number": "...",
@@ -113,6 +118,36 @@ Events on the queue are JSON matching:
   "occured_at": "..."
 }
 ```
+
+`ticket.created` (one message per linked guild; `created_by` is `null` for tickets from e-mail):
+
+```json
+{
+  "type": "ticket.created",
+  "channel_id": "...",
+  "ticket_id": "...",
+  "ticket_number": "...",
+  "subject": "...",
+  "priority": "...",
+  "channel_type": "...",
+  "inbox": "...",
+  "requester": "...",
+  "created_by": "...",
+  "url": "...",
+  "occurred_at": "..."
+}
+```
+
+## Slash command `/kanaal`
+
+Links the channel you run it in to your Velo organization, so Velo knows where to post.
+
+1. A member with **Manage Channels** runs `/kanaal` in the channel.
+2. The bot defers an ephemeral reply (Discord wants an answer within 3 seconds).
+3. It calls `POST /discord/guilds` on the Velo API with the guild, channel and Discord user id, authenticated with the `X-Velo-Bot-Token` header.
+4. Velo checks the Discord account is linked to an admin and stores the channel; the bot shows Velo's (Dutch) message as-is.
+
+The bot needs the `bot` **and** `applications.commands` scopes in its invite URL.
 
 ## Setup
 
@@ -132,8 +167,11 @@ go mod download
 DISCORD_BOT_TOKEN=your_bot_token
 REDIS_ADDR=localhost:6379
 REDIS_PW=
-REDIS_QUEUE=your_queue_name
-REDIS_DB=0
+REDIS_QUEUE=discord:events
+REDIS_DB=2
+VELO_API_URL=http://localhost/api/v1
+VELO_BOT_TOKEN=same_value_as_DISCORD_BOT_API_TOKEN_in_velo_backend
+DISCORD_DEV_GUILD_ID=    # optional: register commands instantly on one server while developing
 ```
 
 3. Run:
@@ -144,4 +182,4 @@ go run ./cmd/velo-bot
 
 ## Status
 
-Queue consumer, concurrent reader + worker pool, Discord embed notifications, structured logging, and graceful shutdown are in place.
+Queue consumer, concurrent reader + worker pool, Discord embed notifications, structured logging, and graceful shutdown are in place. The `/kanaal` slash command links a channel to Velo.

@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	redisconnection "github.com/Samswrld02/Velo-Discord-Bot/redis-connection"
+	veloapi "github.com/Samswrld02/Velo-Discord-Bot/velo-api"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -25,16 +26,21 @@ type Bot struct {
 	wg sync.WaitGroup
 	logger *logrus.Logger
 	config *types.Config
+	velo *veloapi.Client
 }
 
 func (b *Bot) Run() {
+	//slash command handler, added before Open so no interaction is missed
+	b.session.AddHandler(b.handleInteraction)
 
 	//open session
 	if err := b.session.Open(); err != nil {
 		b.logger.Fatal("Could not open Discord session " + err.Error())
 	}
-	
+
 	defer b.session.Close()
+
+	b.registerCommands()
 
 	b.printAscii()
 
@@ -74,7 +80,9 @@ func NewBot(logger *logrus.Logger, config *types.Config) *Bot{
 	}
 
 
-	return &Bot{session: discord, wg: sync.WaitGroup{}, logger: logger, config: config}
+	velo := veloapi.NewClient(config.VeloAPIURL, config.VeloBotToken)
+
+	return &Bot{session: discord, wg: sync.WaitGroup{}, logger: logger, config: config, velo: velo}
 }
 
 //method for checking if ticket event was put into the queue
@@ -109,9 +117,22 @@ func (b *Bot) handleData(data []byte) {
 		b.logger.Error("error unmarshaling data: " + err.Error())
 
 		//early return if data is malformed
-		return 
+		return
 	}
 
+	//every event type comes through the same queue, the type decides what to send where
+	switch ticket.Type {
+	case types.TicketAssigned:
+		b.sendTicketAssigned(ticket)
+	case types.TicketCreated:
+		b.sendTicketCreated(ticket)
+	default:
+		b.logger.Warn("unknown event type: " + ticket.Type)
+	}
+}
+
+//dm to the user the ticket was assigned to
+func (b *Bot) sendTicketAssigned(ticket types.Ticket) {
 	ch, err := b.session.UserChannelCreate(ticket.Discord_id)
 
 	if err != nil {
@@ -125,6 +146,49 @@ func (b *Bot) handleData(data []byte) {
 
 	if err != nil {
 		b.logger.Error(err.Error())
+	}
+}
+
+//message in the channel that was linked to velo with the slash command
+func (b *Bot) sendTicketCreated(ticket types.Ticket) {
+	//fails when the bot was kicked or lost access to the channel, the other jobs just go on
+	if _, err := b.session.ChannelMessageSendComplex(ticket.Channel_id, createTicketCreatedMessage(ticket)); err != nil {
+		b.logger.Error("could not send ticket.created to channel " + ticket.Channel_id + ": " + err.Error())
+	}
+}
+
+//message content for a new ticket
+func createTicketCreatedMessage(ticket types.Ticket) *discordgo.MessageSend {
+	fields := []*discordgo.MessageEmbedField{
+		{Name: "Inbox", Value: ticket.Inbox, Inline: true},
+		{Name: "From", Value: ticket.Requester, Inline: true},
+		{Name: "Priority", Value: ticket.Priority, Inline: true},
+	}
+
+	//tickets from e-mail have no creator
+	if ticket.Created_by != nil {
+		fields = append(fields, &discordgo.MessageEmbedField{Name: "Created by", Value: *ticket.Created_by, Inline: true})
+	}
+
+	return &discordgo.MessageSend{
+		Embeds: []*discordgo.MessageEmbed{
+			{
+				Title: "New ticket #" + ticket.Ticket_number,
+				Description: ticket.Subject,
+				Fields: fields,
+			},
+		},
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					discordgo.Button{
+						Label: "view ticket",
+						Style: discordgo.LinkButton,
+						URL: ticket.Url,
+					},
+				},
+			},
+		},
 	}
 }
 
