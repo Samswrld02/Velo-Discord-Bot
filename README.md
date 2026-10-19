@@ -81,13 +81,13 @@ On `SIGINT` / `SIGTERM` the bot cancels its context, the reader closes the jobs 
 
 ## Stack
 
-| Piece    | Choice                                                  |
-| -------- | ------------------------------------------------------- |
-| Language | Go 1.26                                                 |
-| Discord  | [discordgo](https://github.com/bwmarrin/discordgo)      |
-| Queue    | Redis (`go-redis`)                                      |
+| Piece    | Choice                                                       |
+| -------- | ------------------------------------------------------------ |
+| Language | Go 1.26                                                      |
+| Discord  | [discordgo](https://github.com/bwmarrin/discordgo)           |
+| Queue    | Redis (`go-redis`)                                           |
 | Logging  | [logrus](https://github.com/sirupsen/logrus) (stdout + file) |
-| Config   | `.env` via [godotenv](https://github.com/joho/godotenv) |
+| Config   | `.env` via [godotenv](https://github.com/joho/godotenv)      |
 
 ## Project layout
 
@@ -138,11 +138,11 @@ All events come through one list, `discord:events`. The `type` field decides wha
 }
 ```
 
-## Slash command `/kanaal`
+## Slash command `/setChannel`
 
 Links the channel you run it in to your Velo organization, so Velo knows where to post.
 
-1. A member with **Manage Channels** runs `/kanaal` in the channel.
+1. A member with **Manage Channels** runs `/setChannel` in the channel.
 2. The bot defers an ephemeral reply (Discord wants an answer within 3 seconds).
 3. It calls `POST /discord/guilds` on the Velo API with the guild, channel and Discord user id, authenticated with the `X-Velo-Bot-Token` header.
 4. Velo checks the Discord account is linked to an admin and stores the channel; the bot shows Velo's (Dutch) message as-is.
