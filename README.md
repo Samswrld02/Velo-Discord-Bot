@@ -146,7 +146,7 @@ REDIS_ADDR=localhost:6379
 REDIS_PW=
 REDIS_QUEUE=your_queue_name
 REDIS_DB=0
-VELO_API_URL=http://localhost:8000/api/v1
+VELO_API_URL=http://localhost/api/v1
 VELO_BOT_TOKEN=same_value_as_DISCORD_BOT_API_TOKEN_in_velo_backend
 DISCORD_DEV_GUILD_ID=    # optional: register commands instantly on one server while developing
 ```
