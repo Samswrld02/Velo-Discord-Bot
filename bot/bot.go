@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	redisconnection "github.com/Samswrld02/Velo-Discord-Bot/redis-connection"
+	veloapi "github.com/Samswrld02/Velo-Discord-Bot/velo-api"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -25,16 +26,21 @@ type Bot struct {
 	wg sync.WaitGroup
 	logger *logrus.Logger
 	config *types.Config
+	velo *veloapi.Client
 }
 
 func (b *Bot) Run() {
+	//slash command handler, added before Open so no interaction is missed
+	b.session.AddHandler(b.handleInteraction)
 
 	//open session
 	if err := b.session.Open(); err != nil {
 		b.logger.Fatal("Could not open Discord session " + err.Error())
 	}
-	
+
 	defer b.session.Close()
+
+	b.registerCommands()
 
 	b.printAscii()
 
@@ -74,7 +80,9 @@ func NewBot(logger *logrus.Logger, config *types.Config) *Bot{
 	}
 
 
-	return &Bot{session: discord, wg: sync.WaitGroup{}, logger: logger, config: config}
+	velo := veloapi.NewClient(config.VeloAPIURL, config.VeloBotToken)
+
+	return &Bot{session: discord, wg: sync.WaitGroup{}, logger: logger, config: config, velo: velo}
 }
 
 //method for checking if ticket event was put into the queue
