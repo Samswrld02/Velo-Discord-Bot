@@ -157,6 +157,14 @@ func (b *Bot) sendTicketCreated(ticket types.Ticket) {
 	}
 }
 
+//method for mapping priority string to color
+func setEmbedTicketPriorityColor(priority string) int  {
+	if val, ok := types.Priories[priority]; ok {
+		return val
+	}
+	return 1
+}
+
 //message content for a new ticket
 func createTicketCreatedMessage(ticket types.Ticket) *discordgo.MessageSend {
 	fields := []*discordgo.MessageEmbedField{
@@ -176,6 +184,7 @@ func createTicketCreatedMessage(ticket types.Ticket) *discordgo.MessageSend {
 				Title: "New ticket #" + ticket.Ticket_number,
 				Description: ticket.Subject,
 				Fields: fields,
+				Color: setEmbedTicketPriorityColor(ticket.Priority),
 			},
 		},
 		Components: []discordgo.MessageComponent{

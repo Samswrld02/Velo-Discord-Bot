@@ -6,6 +6,21 @@ const (
 	TicketCreated = "ticket.created"
 )
 
+//color values
+const (
+	ColorLow      = 0x3498db // Blue (#3498db) - Information / Informational
+	ColorNormal   = 0x2ecc71 // Green (#2ecc71) - Healthy / Normal operation
+	ColorHigh     = 0xe67e22 // Orange (#e67e22) - Warning / High priority
+	ColorCritical = 0xe74c3c // Red (#e74c3c) - Alert / Critical error
+)
+
+var Priories = map[string]int{
+	"low" : ColorLow,
+	"normal": ColorNormal,
+	"high": ColorHigh,
+	"critical": ColorCritical,
+}
+
 type Ticket struct {
 	Type string `json:"type"`
 	Discord_id string `json:"discord_user_id"`
