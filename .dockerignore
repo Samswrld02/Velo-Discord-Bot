@@ -1,0 +1,5 @@
+.git
+.env
+logger/logs
+**/*_test.go
+README.md
