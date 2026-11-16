@@ -180,6 +180,14 @@ DISCORD_DEV_GUILD_ID=    # optional: register commands instantly on one server w
 go run ./cmd/velo-bot
 ```
 
+## Production (Docker)
+
+For production the bot runs as a container. The multi-stage `Dockerfile` builds a small Alpine image; `docker-compose.yml` runs it with host networking, a logs volume, and `env_file: .env` (the deployment tool injects that file).
+
+```bash
+docker compose up -d --build
+```
+
 ## Status
 
 Queue consumer, concurrent reader + worker pool, Discord embed notifications, structured logging, and graceful shutdown are in place. The `/kanaal` slash command links a channel to Velo.
