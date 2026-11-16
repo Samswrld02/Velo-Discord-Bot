@@ -10,7 +10,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/velo-bot ./cmd/velo-bot
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/velo-bot ./cmd/velo-bot
 
 # Runtime
 FROM alpine:3.22
