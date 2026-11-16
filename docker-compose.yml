@@ -1,3 +1,4 @@
+name: velo-discord-bot
 services:
   velo-bot:
     build:
